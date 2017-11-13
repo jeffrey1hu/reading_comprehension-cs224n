@@ -80,6 +80,86 @@ def smooth(a, beta=0.8):
         a[i] = beta * a[i-1] + (1 - beta)*a[i]
     return a
 
+# class Encoder(object):
+#     def __init__(self, size):
+#         self.size = size
+#
+#     def encode(self, context, context_m, question, question_m, embedding):
+#         """
+#         In a generalized encode function, you pass in your inputs,
+#         masks, and an initial
+#         hidden state input into this function.
+#
+#         :param inputs: Symbolic representations of your input
+#         :param masks: this is to make sure tf.nn.dynamic_rnn doesn't iterate
+#                       through masked steps
+#         :param encoder_state_input: (Optional) pass this as initial hidden state
+#                                     to tf.nn.dynamic_rnn to build conditional representations
+#         :return: an encoded representation of your input.
+#                  It can be context-level representation, word-level representation,
+#                  or both.
+#         """
+#         # context shape -> (None, P)
+#         # context embed -> (None, P, n)
+#         context_embed = tf.nn.embedding_lookup(embedding, context)
+#         context_embed = tf.nn.dropout(context_embed, keep_prob=keep_prob)
+#         question_embed = tf.nn.embedding_lookup(embedding, question)
+#         question_embed = tf.nn.dropout(question_embed, keep_prob=keep_prob)
+#
+#         with tf.variable_scope('context_lstm'):
+#             con_lstm_fw_cell = rnn.BasicLSTMCell(n_hidden, forget_bias=1.0)
+#             con_lstm_bw_cell = rnn.BasicLSTMCell(n_hidden, forget_bias=1.0)
+#             # shape of outputs -> [output_fw, output_bw] -> output_fw -> [batch_size, P, n]
+#             outputs, _ = tf.nn.bidirectional_dynamic_rnn(con_lstm_fw_cell,
+#                                                          con_lstm_bw_cell,
+#                                                          context_embed,
+#                                                          sequence_length=sequence_length(context_m),
+#                                                          dtype=dtype)
+#
+#         # need H_context as dim (Batch_size, hidden_size, P)
+#         # dimension of outputs
+#         with tf.variable_scope('H_context'):
+#             # H_context -> (batch_size, P, 2n)
+#             H_context = tf.concat(outputs, axis=2)
+#             H_context = tf.nn.dropout(H_context, keep_prob=keep_prob)
+#             variable_summaries(H_context)
+#
+#         with tf.variable_scope('question_lstm'):
+#             question_lstm_fw_cell = rnn.BasicLSTMCell(n_hidden, forget_bias=1.0)
+#             question_lstm_bw_cell = rnn.BasicLSTMCell(n_hidden, forget_bias=1.0)
+#             # shape of outputs -> [output_fw, output_bw] -> output_fw -> [batch_size, P, n]
+#             outputs, _ = tf.nn.bidirectional_dynamic_rnn(question_lstm_fw_cell,
+#                                                          question_lstm_bw_cell,
+#                                                          question_embed,
+#                                                          sequence_length=sequence_length(question_m),
+#                                                          dtype=dtype)
+#
+#         with tf.variable_scope('H_question'):
+#             # H_question -> (batch_size, Q, 2n)
+#             H_question = tf.concat(outputs, axis=2)
+#             H_question = tf.nn.dropout(H_question, keep_prob=keep_prob)
+#             variable_summaries(H_question)
+#
+#
+#         with tf.variable_scope('H_match_lstm'):
+#             match_lstm_fw_cell = matchLSTMcell(2 * n_hidden, self.size, H_question, question_m)
+#             match_lstm_bw_cell = matchLSTMcell(2 * n_hidden, self.size, H_question, question_m)
+#
+#             outputs, _ = tf.nn.bidirectional_dynamic_rnn(match_lstm_fw_cell,
+#                                                          match_lstm_bw_cell,
+#                                                          H_context,
+#                                                          sequence_length=sequence_length(context_m),
+#                                                          dtype=dtype)
+#
+#         # H_match -> (batch_size, Q, 2n)
+#         with tf.variable_scope('H_match'):
+#             H_r = tf.concat(outputs, axis=2)
+#             H_r = tf.nn.dropout(H_r, keep_prob=keep_prob)
+#             variable_summaries(H_r)
+#
+#         return H_r
+
+
 class Encoder(object):
     def __init__(self, vocab_dim=embed_dim, size=2 * num_hidden):
         self.size = size
@@ -456,17 +536,18 @@ class QASystem(object):
         input_batch_size = 100
 
         if training:
-            samples = np.random.choice(range(len(dataset['train_context'])), sample)
+            train_len = sample[0]
+            samples = np.random.choice(range(len(dataset['train_context'])), train_len)
 
             train_context = np.array(dataset['train_context'])[samples, :, :]
             train_question = np.array(dataset['train_question'])[samples, :, :]
             train_answer = np.array(raw_answers['raw_train_answer'])[samples]
-            train_len = len(train_context)
+
 
             train_a_e = np.array([], dtype=np.int32)
             train_a_s = np.array([], dtype=np.int32)
 
-            for i in tqdm(range(sample // input_batch_size), desc='trianing set'):
+            for i in tqdm(range(train_len // input_batch_size), desc='trianing set'):
                 train_as, train_ae = self.answer(session,
                                                  train_context[i * input_batch_size:(i + 1) * input_batch_size],
                                                  train_question[i * input_batch_size:(i + 1) * input_batch_size])
@@ -475,7 +556,7 @@ class QASystem(object):
                 train_a_s = np.concatenate((train_a_s, train_as), axis=0)
 
             # a_s and a_e -> (sample_num)
-            for i in range(sample):
+            for i in range(train_len):
                 prediction_ids = train_context[i, 0, train_a_s[i]:train_a_e[i]+1]
                 prediction_answer = ' '.join(rev_vocab[prediction_ids])
                 raw_answer = train_answer[i]
@@ -488,17 +569,17 @@ class QASystem(object):
 
         f1 = 0.
         em = 0.
-        samples = np.random.choice(range(len(dataset['val_context'])), sample)
+        val_len = len(sample[1])
+        samples = np.random.choice(range(len(dataset['val_context'])), val_len)
 
         val_context = np.array(dataset['val_context'])[samples, :, :]
         val_question = np.array(dataset['val_question'])[samples, :, :]
         val_answer = np.array(raw_answers['raw_val_answer'])[samples]
-        val_len = len(val_answer)
 
         val_a_e = np.array([], dtype=np.int32)
         val_a_s = np.array([], dtype=np.int32)
 
-        for i in tqdm(range(sample // input_batch_size), desc='val set'):
+        for i in tqdm(range(val_len // input_batch_size), desc='val set'):
             val_as, val_ae = self.answer(session,
                                              val_context[i * input_batch_size:(i + 1) * input_batch_size],
                                              val_question[i * input_batch_size:(i + 1) * input_batch_size])
@@ -507,7 +588,7 @@ class QASystem(object):
             val_a_s = np.concatenate((val_a_s, val_as), axis=0)
 
         # a_s and a_e -> (sample_num)
-        for i in range(sample):
+        for i in range(val_len):
             prediction_ids = val_context[i, 0, val_a_s[i]:val_a_e[i]]
             prediction_answer = ' '.join(rev_vocab[prediction_ids])
             raw_answer = val_answer[i]
@@ -519,9 +600,9 @@ class QASystem(object):
                          format(f1 / val_len, em / val_len, val_len))
 
         if training:
-            return tf1/sample, tem/sample, f1/sample, em/sample
+            return tf1/train_len, tem/train_len, f1/val_len, em/val_len
         else:
-            return f1/sample, em/sample
+            return f1/val_len, em/val_len
     #
     # def evaluate_answer(self, session, dataset, answers, rev_vocab,
     #                     set_name='val', training=False, log=False,
