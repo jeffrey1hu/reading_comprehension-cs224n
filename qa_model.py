@@ -569,7 +569,7 @@ class QASystem(object):
 
         f1 = 0.
         em = 0.
-        val_len = len(sample[1])
+        val_len = sample[1]
         samples = np.random.choice(range(len(dataset['val_context'])), val_len)
 
         val_context = np.array(dataset['val_context'])[samples, :, :]
