@@ -10,6 +10,9 @@ from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
 from tensorflow.python.ops import variable_scope as vs
 
+import matplotlib
+matplotlib.use('agg')
+
 from utils.matchLSTM_cell import matchLSTMcell
 import tensorflow.contrib.rnn as rnn
 from Config import Config as cfg
@@ -426,7 +429,7 @@ class QASystem(object):
 
     def evaluate_answer(self, session, dataset, answers, rev_vocab,
                         set_name='val', training=False, log=False,
-                        sample=(100, 100), sendin=None, ensemble=False):
+                        sample=(100, 100), sendin=None, ensemble=True):
         """
         Evaluate the model's performance using the harmonic mean of F1 and Exact Match (EM)
         with the set of true answer labels
