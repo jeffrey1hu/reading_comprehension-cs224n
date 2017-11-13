@@ -537,7 +537,8 @@ class QASystem(object):
 
         if training:
             train_len = sample[0]
-            samples = np.random.choice(range(len(dataset['train_context'])), train_len)
+            # samples = np.random.choice(range(len(dataset['train_context'])), train_len)
+            samples = range(100)
 
             train_context = np.array(dataset['train_context'])[samples, :, :]
             train_question = np.array(dataset['train_question'])[samples, :, :]
@@ -570,7 +571,8 @@ class QASystem(object):
         f1 = 0.
         em = 0.
         val_len = sample[1]
-        samples = np.random.choice(range(len(dataset['val_context'])), val_len)
+        # samples = np.random.choice(range(len(dataset['val_context'])), val_len)
+        samples = range(100)
 
         val_context = np.array(dataset['val_context'])[samples, :, :]
         val_question = np.array(dataset['val_question'])[samples, :, :]
@@ -603,7 +605,7 @@ class QASystem(object):
             return tf1/train_len, tem/train_len, f1/val_len, em/val_len
         else:
             return f1/val_len, em/val_len
-    #
+
     # def evaluate_answer(self, session, dataset, answers, rev_vocab,
     #                     set_name='val', training=False, log=False,
     #                     sample=(100, 100), sendin=None, ensemble=True):
